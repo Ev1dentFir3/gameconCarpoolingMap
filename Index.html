@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Gamecon Carpooler's Map</title>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAvR82UFrKsvKgHkL7Dygi8vYmaNB3a0UA"></script>
+  <script>
+    let markers = [];
+    let labelsVisible = true;
+
+    function initMap() {
+      createMarkers(SPREADSHEET_DATA);
+    }
+
+    function createMarkers(data) {
+      const map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 10,
+        center: { lat: 45.5122, lng: -122.6587 } // Portland, OR
+      });
+
+      data.forEach(member => {
+        if (member.deletedStatus && member.deletedStatus.toLowerCase() === 'deleted') {
+          return; // Skip deleted entries
+        }
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address: member.addressOrIntersection }, function(results, status) {
+          if (status === 'OK') {
+            const color = getMarkerColor(member);
+            const marker = new google.maps.Marker({
+              map: map,
+              position: results[0].geometry.location,
+              title: member.discordName,
+              icon: getColoredMarkerIcon(color)
+            });
+
+            // Add a range circle around the marker
+            const rangeCircle = new google.maps.Circle({
+              strokeColor: '#0080FF',
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
+              fillColor: '#0080FF',
+              fillOpacity: 0.2,
+              map: map,
+              center: marker.getPosition(),
+              radius: 300  // Radius in meters, adjust to your needs
+            });
+
+            // Push marker to the array
+            markers.push(marker);
+
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'custom-label';
+            labelDiv.innerText = member.discordName;
+            document.body.appendChild(labelDiv);
+
+            const labelOverlay = new google.maps.OverlayView();
+            labelOverlay.onAdd = function() {
+              const panes = this.getPanes();
+              panes.overlayLayer.appendChild(labelDiv);
+            };
+
+            labelOverlay.draw = function() {
+              const position = this.getProjection().fromLatLngToDivPixel(marker.getPosition());
+              labelDiv.style.left = position.x + 'px';
+              labelDiv.style.top = (position.y - 30) + 'px'; // Adjust the -30 value to move the label above the marker
+            };
+
+            labelOverlay.onRemove = function() {
+              labelDiv.parentNode.removeChild(labelDiv);
+            };
+
+            labelOverlay.setMap(map);
+
+            const infoWindow = new google.maps.InfoWindow({
+              content: `<strong style="font-size: 1.5em;">${member.discordName}</strong><br><br>Leave Time: ${member.leaveTime}<br><br>Notes: ${member.otherNotes}`
+            });
+
+            marker.addListener('mouseover', () => {
+              infoWindow.open(map, marker);
+            });
+
+            marker.addListener('mouseout', () => {
+              infoWindow.close();
+            });
+          } else {
+            console.error(`Geocode failed for ${member.addressOrIntersection} due to: ${status}`);
+          }
+        });
+      });
+    }
+
+    function getMarkerColor(member) {
+      if (member.driverOrRider === "I'm a Driver") {
+        return 'purple';
+      } else if (member.leaveTime.includes("I'd like to leave before 9pm")) {
+        return 'green';
+      } else if (member.leaveTime.includes("I'd like to leave around 10pm")) {
+        return 'blue';
+      } else if (member.leaveTime.includes("I'd like to leave around 11pm")) {
+        return 'yellow';
+      } else if (member.leaveTime.includes("I'd like to leave around Midnight")) {
+        return 'orange';
+      } else if (member.leaveTime.includes("I'm a party animal, and often game all night!")) {
+        return 'red';
+      } else {
+        return 'gray';
+      }
+    }
+
+    function getColoredMarkerIcon(color) {
+      return `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
+    }
+
+    function toggleKey() {
+      const key = document.getElementById('key');
+      const toggleButton = document.getElementById('toggleButton');
+      if (key.style.display === 'none') {
+        key.style.display = 'block';
+        toggleButton.innerHTML = 'Minimize Key';
+      } else {
+        key.style.display = 'none';
+        toggleButton.innerHTML = 'Show Key';
+      }
+    }
+
+    function toggleLabels() {
+      labelsVisible = !labelsVisible;
+
+      const customLabelElements = document.querySelectorAll('.custom-label');
+      customLabelElements.forEach(label => {
+      label.style.display = labelsVisible ? 'block' : 'none';
+     });
+
+      document.getElementById('toggleLabelsButton').innerHTML = labelsVisible ? 'Hide Labels' : 'Show Labels';
+  }
+
+  </script>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: Roboto, Arial, sans-serif;
+      /* Match Google Maps font */
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    #key-container {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+      z-index: 10000;
+      /* Increased z-index to ensure visibility */
+      font-family: Roboto, Arial, sans-serif;
+      /* Match Google Maps font */
+    }
+
+    #key {
+      display: block;
+    }
+
+    #toggleButton {
+      margin-top: 5px;
+      cursor: pointer;
+    }
+
+    #toggleLabelsButton {
+      margin-top: 5px;
+      cursor: pointer;
+    }
+
+    .key-header {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .key-subheader {
+      margin-bottom: 10px;
+      font-size: 0.9em;
+      color: #555;
+    }
+
+    .key-item {
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+    }
+
+    .color-box {
+      width: 24px;
+      height: 24px;
+      margin-right: 5px;
+      background-size: cover;
+    }
+
+    .custom-label {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #444;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      z-index: 1000;
+    }
+  </style>
+</head>
+
+<body onload="initMap()">
+  <div id="map"></div>
+  <div id="key-container">
+    <div id="key" style="max-width: 300px;">
+      <div class="key-header">Key</div>
+      <div class="key-subheader">Drivers are marked in purple, seperately from riders. This will help drivers find
+        riders along their usual route to game night.</div>
+      <div class="key-item">
+        <span class="color-box" style="background-image: url('http://maps.google.com/mapfiles/ms/icons/purple-dot.png');"></span>Driver
+      </div>
+      <div class="key-item">
+        <span class="color-box" style="background-image: url('http://maps.google.com/mapfiles/ms/icons/green-dot.png');"></span>Rider
+        - Leave before 9pm</div>
+      <div class="key-item">
+        <span class="color-box" style="background-image: url('http://maps.google.com/mapfiles/ms/icons/blue-dot.png');"></span>Rider
+        - Leave around 10pm</div>
+      <div class="key-item">
+        <span class="color-box" style="background-image: url('http://maps.google.com/mapfiles/ms/icons/yellow-dot.png');"></span>Rider
+        - Leave around 11pm</div>
+      <div class="key-item">
+        <span class="color-box" style="background-image: url('http://maps.google.com/mapfiles/ms/icons/orange-dot.png');"></span>Rider
+        - Leave around Midnight</div>
+      <div class="key-item">
+        <span class="color-box" style="background-image: url('http://maps.google.com/mapfiles/ms/icons/red-dot.png');"></span>Rider
+        - Party Animal</div>
+    </div>
+    <button id="toggleButton" onclick="toggleKey()">Minimize Key</button>
+    <button id="toggleLabelsButton" onclick="toggleLabels()">Hide Labels</button>
+  </div>
+</body>
+
+</html>
